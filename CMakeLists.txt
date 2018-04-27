@@ -392,21 +392,20 @@ if(CMAKE_USE_SECTRANSP)
 endif()
 
 if(CMAKE_USE_OPENSSL)
+  hunter_add_package(OpenSSL)
   find_package(OpenSSL REQUIRED)
   set(SSL_ENABLED ON)
   set(USE_OPENSSL ON)
-
-  # Depend on OpenSSL via imported targets if supported by the running
-  # version of CMake.  This allows our dependents to get our dependencies
-  # transitively.
-  if(NOT CMAKE_VERSION VERSION_LESS 3.4)
+  set(HAVE_LIBCRYPTO ON)
+  set(HAVE_LIBSSL ON)
+  if(HUNTER_ENABLED)
     list(APPEND CURL_LIBS OpenSSL::SSL OpenSSL::Crypto)
+    set(CMAKE_REQUIRED_INCLUDES "${OPENSSL_ROOT}/include")
   else()
-    list(APPEND CURL_LIBS ${OPENSSL_LIBRARIES})
-    include_directories(${OPENSSL_INCLUDE_DIR})
-  endif()
-
+  list(APPEND CURL_LIBS ${OPENSSL_LIBRARIES})
+  include_directories(${OPENSSL_INCLUDE_DIR})
   set(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
+  endif()
   check_include_file("openssl/crypto.h" HAVE_OPENSSL_CRYPTO_H)
   check_include_file("openssl/err.h"    HAVE_OPENSSL_ERR_H)
   check_include_file("openssl/pem.h"    HAVE_OPENSSL_PEM_H)
