@@ -1525,27 +1525,6 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/curl"
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.h")
 
-include(CMakePackageConfigHelpers)
-write_basic_package_version_file(
-    "${version_config}"
-    VERSION ${CURL_VERSION}
-    COMPATIBILITY SameMajorVersion
-)
-
-# Use:
-# * TARGETS_EXPORT_NAME
-# * PROJECT_NAME
-configure_package_config_file(CMake/curl-config.cmake.in
-        "${project_config}"
-        INSTALL_DESTINATION ${CURL_INSTALL_CMAKE_DIR}
-)
-
-install(
-        EXPORT "${TARGETS_EXPORT_NAME}"
-        NAMESPACE "${PROJECT_NAME}::"
-        DESTINATION ${CURL_INSTALL_CMAKE_DIR}
-)
-
 install(
         FILES ${version_config} ${project_config}
         DESTINATION ${CURL_INSTALL_CMAKE_DIR}
