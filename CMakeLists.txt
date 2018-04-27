@@ -637,20 +637,24 @@ check_library_exists("${CURL_LIBS}" dlopen "" HAVE_DLOPEN)
 
 set(HAVE_LIBZ OFF)
 set(HAVE_ZLIB_H OFF)
-set(USE_ZLIB OFF)
-optional_dependency(ZLIB)
-if(ZLIB_FOUND)
-  set(HAVE_ZLIB_H ON)
-  set(HAVE_LIBZ ON)
-  set(USE_ZLIB ON)
+set(HAVE_ZLIB OFF)
+if(CURL_ZLIB)
+  hunter_add_package(ZLIB)
+  find_package(ZLIB CONFIG REQUIRED)
+  if(ZLIB_FOUND)
+    set(HAVE_ZLIB_H ON)
+    set(HAVE_ZLIB ON)
+    set(HAVE_LIBZ ON)
 
-  # Depend on ZLIB via imported targets if supported by the running
-  # version of CMake.  This allows our dependents to get our dependencies
-  # transitively.
-  if(NOT CMAKE_VERSION VERSION_LESS 3.4)
-    list(APPEND CURL_LIBS ZLIB::ZLIB)
-  else()
+    if(HUNTER_ENABLED)
+      list(APPEND CURL_LIBS ZLIB::zlib)
+      set(ZLIB_INCLUDE_DIRS "${ZLIB_ROOT}/include")
+    else()
+
     list(APPEND CURL_LIBS ${ZLIB_LIBRARIES})
+
+    endif()
+
     include_directories(${ZLIB_INCLUDE_DIRS})
   endif()
   list(APPEND CMAKE_REQUIRED_INCLUDES ${ZLIB_INCLUDE_DIRS})
