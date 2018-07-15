@@ -95,7 +95,7 @@ if(MSVC AND NOT BUILD_SHARED_LIBS)
   set_target_properties(${LIB_NAME} PROPERTIES STATIC_LIBRARY_FLAGS ${CMAKE_EXE_LINKER_FLAGS})
 endif()
 
-target_link_libraries(${LIB_NAME} ${CURL_LIBS})
+target_link_libraries(${LIB_NAME} PUBLIC ${CURL_LIBS})
 
 if(WIN32)
   add_definitions(-D_USRDLL)
@@ -133,13 +133,16 @@ target_include_directories(${LIB_NAME} INTERFACE
   $<BUILD_INTERFACE:${CURL_SOURCE_DIR}/include>)
 
 install(TARGETS ${LIB_NAME}
-  EXPORT ${TARGETS_EXPORT_NAME}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  EXPORT "${targets_export_name}"
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+  INCLUDES DESTINATION "${include_install_dir}"
 )
 
-export(TARGETS ${LIB_NAME}
-       APPEND FILE ${PROJECT_BINARY_DIR}/libcurl-target.cmake
-       NAMESPACE ${PROJECT_NAME}::
+install(EXPORT "${targets_export_name}"
+        FILE libcurl-target.cmake
+        NAMESPACE CURL::
+        DESTINATION lib/cmake/CURL
 )
+
