@@ -944,8 +944,23 @@ ${SIZEOF_CURL_OFF_T_CODE}
 /* The size of `size_t', as computed by sizeof. */
 #define SIZEOF_SIZE_T INTSIZEOF_SIZE
 
+#if defined(__APPLE__) && \
+    defined(__MACH__) && \
+    defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+# if defined(__aarch64__) || defined(__x86_64__)
+#  define SIZEOF_TIME_T 8
+# else
+#  define SIZEOF_TIME_T 4
+# endif
+#else
+
 /* The size of `time_t', as computed by sizeof. */
 ${SIZEOF_TIME_T_CODE}
+
+#endif
+
+/* The size of `void*', as computed by sizeof. */
+#cmakedefine SIZEOF_VOIDP ${SIZEOF_VOIDP}
 
 /* Define to 1 if you have the ANSI C header files. */
 #cmakedefine STDC_HEADERS 1
