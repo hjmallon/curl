@@ -21,6 +21,8 @@
  ***************************************************************************/
 /* lib/curl_config.h.in.  Generated somehow by cmake.  */
 
+#include <intsizeof.h> // INTSIZEOF_INT
+
 /* when building libcurl itself */
 #cmakedefine BUILDING_LIBCURL 1
 
@@ -925,13 +927,13 @@
 */
 
 /* The size of `int', as computed by sizeof. */
-${SIZEOF_INT_CODE}
+#define SIZEOF_INT INTSIZEOF_INT
 
 /* The size of `short', as computed by sizeof. */
-${SIZEOF_SHORT_CODE}
+#define SIZEOF_SHORT INTSIZEOF_SHRT
 
 /* The size of `long', as computed by sizeof. */
-${SIZEOF_LONG_CODE}
+#define SIZEOF_LONG INTSIZEOF_LONG
 
 /* The size of `off_t', as computed by sizeof. */
 ${SIZEOF_OFF_T_CODE}
@@ -940,7 +942,7 @@ ${SIZEOF_OFF_T_CODE}
 ${SIZEOF_CURL_OFF_T_CODE}
 
 /* The size of `size_t', as computed by sizeof. */
-${SIZEOF_SIZE_T_CODE}
+#define SIZEOF_SIZE_T INTSIZEOF_SIZE
 
 /* The size of `time_t', as computed by sizeof. */
 ${SIZEOF_TIME_T_CODE}
