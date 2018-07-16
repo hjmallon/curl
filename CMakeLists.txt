@@ -672,21 +672,9 @@ if(CURL_BROTLI)
   endif()
 endif()
 
-option(CURL_ZSTD "Set to ON to enable building curl with zstd support." OFF)
-set(HAVE_ZSTD OFF)
-if(CURL_ZSTD)
-  find_package(Zstd REQUIRED)
-  cmake_push_check_state()
-  set(CMAKE_REQUIRED_INCLUDES ${Zstd_INCLUDE_DIRS})
-  set(CMAKE_REQUIRED_LIBRARIES ${Zstd_LIBRARIES})
-  check_symbol_exists(ZSTD_createDStream "zstd.h" HAVE_ZSTD_CREATEDSTREAM)
-  cmake_pop_check_state()
-  if(Zstd_FOUND AND HAVE_ZSTD_CREATEDSTREAM)
-    set(HAVE_ZSTD ON)
-    list(APPEND CURL_LIBS ${Zstd_LIBRARIES})
-    include_directories(${Zstd_INCLUDE_DIRS})
-  endif()
-endif()
+hunter_add_package(intsizeof)
+find_package(intsizeof CONFIG REQUIRED)
+list(APPEND CURL_LIBS intsizeof::intsizeof)
 
 #libSSH2
 option(CMAKE_USE_LIBSSH2 "Use libSSH2" ON)
@@ -963,15 +951,29 @@ check_include_file_concat("stdint.h"        HAVE_STDINT_H)
 check_include_file_concat("sockio.h"        HAVE_SOCKIO_H)
 check_include_file_concat("sys/utsname.h"   HAVE_SYS_UTSNAME_H)
 
+if(NOT HUNTER_ENABLED)
+
 check_type_size(size_t  SIZEOF_SIZE_T)
+
+endif()
+
 check_type_size(ssize_t  SIZEOF_SSIZE_T)
 check_type_size("long long"  SIZEOF_LONG_LONG)
+
+if(NOT HUNTER_ENABLED)
+
 check_type_size("long"  SIZEOF_LONG)
 check_type_size("short"  SIZEOF_SHORT)
 check_type_size("int"  SIZEOF_INT)
 check_type_size("__int64"  SIZEOF___INT64)
 check_type_size("long double"  SIZEOF_LONG_DOUBLE)
+
+endif()
+
 check_type_size("time_t"  SIZEOF_TIME_T)
+
+if(NOT HUNTER_ENABLED)
+
 if(NOT HAVE_SIZEOF_SSIZE_T)
   if(SIZEOF_LONG EQUAL SIZEOF_SIZE_T)
     set(ssize_t long)
@@ -981,6 +983,8 @@ if(NOT HAVE_SIZEOF_SSIZE_T)
   endif()
 endif()
 # off_t is sized later, after the HAVE_FILE_OFFSET_BITS test
+
+endif()
 
 if(HAVE_SIZEOF_LONG_LONG)
   set(HAVE_LONGLONG 1)
