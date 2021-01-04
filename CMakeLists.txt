@@ -45,6 +45,12 @@ include(Macros)
 include(CMakeDependentOption)
 include(CheckCCompilerFlag)
 
+include(CMake/HunterGate.cmake)
+HunterGate(
+    URL "https://github.com/cpp-pm/hunter/archive/v0.23.288.tar.gz"
+    SHA1 "6c9b2bc606d86ae31f96a62fc68f0a593024815b"
+)
+
 project(CURL C)
 
 file(STRINGS ${CURL_SOURCE_DIR}/include/curl/curlver.h CURL_VERSION_H_CONTENTS REGEX "#define LIBCURL_VERSION( |_NUM )")
@@ -54,6 +60,7 @@ string(REGEX REPLACE "[^\"]+\"" "" CURL_VERSION ${CURL_VERSION})
 string(REGEX MATCH "#define LIBCURL_VERSION_NUM 0x[0-9a-fA-F]+"
   CURL_VERSION_NUM ${CURL_VERSION_H_CONTENTS})
 string(REGEX REPLACE "[^0]+0x" "" CURL_VERSION_NUM ${CURL_VERSION_NUM})
+SET(PROJECT_VERSION ${CURL_VERSION})
 
 
 # Setup package meta-data
@@ -130,7 +137,9 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_CLANG)
   endif()
 endif()
 
-if(ENABLE_DEBUG)
+option(CURL_WITH_LIBIDN "Enable IDN" OFF)
+
+if (ENABLE_DEBUG)
   # DEBUGBUILD will be defined only for Debug builds
   set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS $<$<CONFIG:Debug>:DEBUGBUILD>)
   set(ENABLE_CURLDEBUG ON)
@@ -150,8 +159,16 @@ set(CURL_LIBS "")
 
 if(ENABLE_ARES)
   set(USE_ARES 1)
+  if(HUNTER_ENABLED)
+    hunter_add_package(c-ares)
+    find_package(c-ares CONFIG REQUIRED)
+    set(CARES_INCLUDE_DIR "${C-ARES_ROOT}/include")
+    set(CARES_LIBRARY c-ares::cares)
+  else()
   find_package(CARES REQUIRED)
-  list(APPEND CURL_LIBS ${CARES_LIBRARY})
+  endif()
+  list(APPEND CURL_LIBS ${CARES_LIBRARY} )
+  set(CURL_LIBS ${CURL_LIBS} ${CARES_LIBRARY})
 endif()
 
 include(CurlSymbolHiding)
@@ -338,7 +355,11 @@ if(WIN32 OR CMAKE_USE_SECTRANSP OR CMAKE_USE_SCHANNEL OR CMAKE_USE_MBEDTLS OR CM
 endif()
 option(CMAKE_USE_OPENSSL "Use OpenSSL code. Experimental" ${openssl_default})
 
-count_true(enabled_ssl_options_count
+option(CMAKE_USE_BORINGSSL "Use BoringSSL" OFF)
+
+count_true(enabled_ssl_options enabled_ssl_options_count
+  CMAKE_USE_WINSSL
+  CMAKE_USE_DARWINSSL
   CMAKE_USE_SCHANNEL
   CMAKE_USE_SECTRANSP
   CMAKE_USE_OPENSSL
@@ -383,21 +404,49 @@ if(CMAKE_USE_SECTRANSP)
 endif()
 
 if(CMAKE_USE_OPENSSL)
-  find_package(OpenSSL REQUIRED)
+  if(CMAKE_USE_BORINGSSL)
+    hunter_add_package(BoringSSL)
+    find_package(BoringSSL CONFIG REQUIRED)
+    set(OPENSSL_INCLUDE_DIR "${BORINGSSL_ROOT}/include")
+    get_property(
+        imported_configurations
+        TARGET BoringSSL::crypto
+        PROPERTY IMPORTED_CONFIGURATIONS
+    )
+    list(GET imported_configurations 0 imported_configuration)
+    string(TOUPPER "${imported_configuration}" imported_configuration)
+    get_property(
+        crypto_lib
+        TARGET BoringSSL::crypto
+        PROPERTY IMPORTED_LOCATION_${imported_configuration}
+    )
+    get_property(
+        ssl_lib
+        TARGET BoringSSL::ssl
+        PROPERTY IMPORTED_LOCATION_${imported_configuration}
+    )
+    set(OPENSSL_LIBRARIES ${crypto_lib} ${ssl_lib})
+  else()
+    hunter_add_package(OpenSSL)
+    find_package(OpenSSL REQUIRED)
+  endif()
   set(SSL_ENABLED ON)
   set(USE_OPENSSL ON)
-
-  # Depend on OpenSSL via imported targets if supported by the running
-  # version of CMake.  This allows our dependents to get our dependencies
-  # transitively.
-  if(NOT CMAKE_VERSION VERSION_LESS 3.4)
-    list(APPEND CURL_LIBS OpenSSL::SSL OpenSSL::Crypto)
+  set(HAVE_LIBCRYPTO ON)
+  set(HAVE_LIBSSL ON)
+  if(HUNTER_ENABLED)
+    if(CMAKE_USE_BORINGSSL)
+      list(APPEND CURL_LIBS BoringSSL::ssl BoringSSL::crypto)
+      set(CMAKE_REQUIRED_INCLUDES "${BORINGSSL_ROOT}/include")
+    else()
+      list(APPEND CURL_LIBS OpenSSL::SSL OpenSSL::Crypto)
+      set(CMAKE_REQUIRED_INCLUDES "${OPENSSL_ROOT}/include")
+    endif()
   else()
-    list(APPEND CURL_LIBS ${OPENSSL_LIBRARIES})
-    include_directories(${OPENSSL_INCLUDE_DIR})
-  endif()
-
+  list(APPEND CURL_LIBS ${OPENSSL_LIBRARIES})
+  include_directories(${OPENSSL_INCLUDE_DIR})
   set(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
+  endif()
   check_include_file("openssl/crypto.h" HAVE_OPENSSL_CRYPTO_H)
   check_include_file("openssl/err.h"    HAVE_OPENSSL_ERR_H)
   check_include_file("openssl/pem.h"    HAVE_OPENSSL_PEM_H)
@@ -408,6 +457,10 @@ if(CMAKE_USE_OPENSSL)
   check_symbol_exists(RAND_status "${CURL_INCLUDES}" HAVE_RAND_STATUS)
   check_symbol_exists(RAND_screen "${CURL_INCLUDES}" HAVE_RAND_SCREEN)
   check_symbol_exists(RAND_egd    "${CURL_INCLUDES}" HAVE_RAND_EGD)
+
+  if(CMAKE_USE_BORINGSSL)
+    set(HAVE_OPENSSL_ENGINE_H FALSE)
+  endif()
 endif()
 
 if(CMAKE_USE_MBEDTLS)
@@ -617,8 +670,12 @@ if(NOT CURL_DISABLE_LDAPS)
   check_include_file_concat("ldapssl.h"  HAVE_LDAPSSL_H)
 endif()
 
+if(CURL_WITH_LIBIDN)
+
 # Check for idn
 check_library_exists_concat("idn2" idn2_lookup_ul HAVE_LIBIDN2)
+
+endif()
 
 # Check for symbol dlopen (same as HAVE_LIBDL)
 check_library_exists("${CURL_LIBS}" dlopen "" HAVE_DLOPEN)
@@ -626,19 +683,24 @@ check_library_exists("${CURL_LIBS}" dlopen "" HAVE_DLOPEN)
 set(HAVE_LIBZ OFF)
 set(HAVE_ZLIB_H OFF)
 set(USE_ZLIB OFF)
-optional_dependency(ZLIB)
-if(ZLIB_FOUND)
-  set(HAVE_ZLIB_H ON)
-  set(HAVE_LIBZ ON)
-  set(USE_ZLIB ON)
+option(CURL_ZLIB "Set to ON to enable building curl with zlib support." ON)
+if(CURL_ZLIB)
+  hunter_add_package(ZLIB)
+  find_package(ZLIB CONFIG REQUIRED)
+  if(ZLIB_FOUND)
+    set(HAVE_ZLIB_H ON)
+    set(HAVE_LIBZ ON)
+    set(USE_ZLIB ON)
 
-  # Depend on ZLIB via imported targets if supported by the running
-  # version of CMake.  This allows our dependents to get our dependencies
-  # transitively.
-  if(NOT CMAKE_VERSION VERSION_LESS 3.4)
-    list(APPEND CURL_LIBS ZLIB::ZLIB)
-  else()
+    if(HUNTER_ENABLED)
+      list(APPEND CURL_LIBS ZLIB::zlib)
+      set(ZLIB_INCLUDE_DIRS "${ZLIB_ROOT}/include")
+    else()
+
     list(APPEND CURL_LIBS ${ZLIB_LIBRARIES})
+
+    endif()
+
     include_directories(${ZLIB_INCLUDE_DIRS})
   endif()
   list(APPEND CMAKE_REQUIRED_INCLUDES ${ZLIB_INCLUDE_DIRS})
@@ -659,18 +721,23 @@ endif()
 option(CURL_ZSTD "Set to ON to enable building curl with zstd support." OFF)
 set(HAVE_ZSTD OFF)
 if(CURL_ZSTD)
-  find_package(Zstd REQUIRED)
-  cmake_push_check_state()
-  set(CMAKE_REQUIRED_INCLUDES ${Zstd_INCLUDE_DIRS})
-  set(CMAKE_REQUIRED_LIBRARIES ${Zstd_LIBRARIES})
-  check_symbol_exists(ZSTD_createDStream "zstd.h" HAVE_ZSTD_CREATEDSTREAM)
-  cmake_pop_check_state()
-  if(Zstd_FOUND AND HAVE_ZSTD_CREATEDSTREAM)
+  hunter_add_package(zstd)
+  find_package(zstd CONFIG REQUIRED)
+  if(ZLIB_FOUND)
     set(HAVE_ZSTD ON)
-    list(APPEND CURL_LIBS ${Zstd_LIBRARIES})
-    include_directories(${Zstd_INCLUDE_DIRS})
+    if(HUNTER_ENABLED)
+      list(APPEND CURL_LIBS zstd::libzstd_static)
+    else()
+      list(APPEND CURL_LIBS ${ZSTD_LIBRARIES})
+    endif()
+    include_directories(${ZSTD_INCLUDE_DIRS})
   endif()
+  list(APPEND CMAKE_REQUIRED_INCLUDES ${ZSTD_INCLUDE_DIRS})
 endif()
+
+hunter_add_package(intsizeof)
+find_package(intsizeof CONFIG REQUIRED)
+list(APPEND CURL_LIBS intsizeof::intsizeof)
 
 #libSSH2
 option(CMAKE_USE_LIBSSH2 "Use libSSH2" ON)
@@ -680,8 +747,12 @@ set(HAVE_LIBSSH2 OFF)
 set(HAVE_LIBSSH2_H OFF)
 
 if(CMAKE_USE_LIBSSH2)
-  find_package(LibSSH2)
+  hunter_add_package(Libssh2)
+  find_package(Libssh2 CONFIG REQUIRED)
+  set(LIBSSH2_FOUND TRUE)
   if(LIBSSH2_FOUND)
+    set(LIBSSH2_LIBRARY Libssh2::libssh2)
+    set(LIBSSH2_INCLUDE_DIR "${LIBSSH2_ROOT}/include")
     list(APPEND CURL_LIBS ${LIBSSH2_LIBRARY})
     set(CMAKE_REQUIRED_LIBRARIES ${LIBSSH2_LIBRARY})
     list(APPEND CMAKE_REQUIRED_INCLUDES "${LIBSSH2_INCLUDE_DIR}")
@@ -943,15 +1014,29 @@ check_include_file_concat("stdint.h"        HAVE_STDINT_H)
 check_include_file_concat("sockio.h"        HAVE_SOCKIO_H)
 check_include_file_concat("sys/utsname.h"   HAVE_SYS_UTSNAME_H)
 
+if(NOT HUNTER_ENABLED)
+
 check_type_size(size_t  SIZEOF_SIZE_T)
+
+endif()
+
 check_type_size(ssize_t  SIZEOF_SSIZE_T)
 check_type_size("long long"  SIZEOF_LONG_LONG)
+
+if(NOT HUNTER_ENABLED)
+
 check_type_size("long"  SIZEOF_LONG)
 check_type_size("short"  SIZEOF_SHORT)
 check_type_size("int"  SIZEOF_INT)
 check_type_size("__int64"  SIZEOF___INT64)
 check_type_size("long double"  SIZEOF_LONG_DOUBLE)
+
+endif()
+
 check_type_size("time_t"  SIZEOF_TIME_T)
+
+if(NOT HUNTER_ENABLED)
+
 if(NOT HAVE_SIZEOF_SSIZE_T)
   if(SIZEOF_LONG EQUAL SIZEOF_SIZE_T)
     set(ssize_t long)
@@ -961,6 +1046,8 @@ if(NOT HAVE_SIZEOF_SSIZE_T)
   endif()
 endif()
 # off_t is sized later, after the HAVE_FILE_OFFSET_BITS test
+
+endif()
 
 if(HAVE_SIZEOF_LONG_LONG)
   set(HAVE_LONGLONG 1)
@@ -1136,6 +1223,12 @@ foreach(CURL_TEST
     )
   curl_internal_test(${CURL_TEST})
 endforeach()
+
+if(RASPBERRY_PI)
+  # FIXME
+  set(HAVE_GLIBC_STRERROR_R 0 CACHE INTERNAL "")
+  set(HAVE_POSIX_STRERROR_R 1 CACHE INTERNAL "")
+endif()
 
 # Check for reentrant
 foreach(CURL_TEST
@@ -1317,7 +1410,26 @@ if(USE_MANUAL)
   add_subdirectory(docs)
 endif()
 
+#add config installation location parameters before includeing subdirectories
+# Layout. This works for all platforms:
+#   * <prefix>/lib/cmake/<PROJECT-NAME>
+#   * <prefix>/lib/
+#   * <prefix>/include/
+set(config_install_dir "lib/cmake/${PROJECT_NAME}")
+set(include_install_dir "include")
+set(generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
+# Configuration
+set(version_config "${generated_dir}/${PROJECT_NAME}ConfigVersion.cmake")
+set(project_config "${generated_dir}/${PROJECT_NAME}Config.cmake")
+set(targets_export_name "${PROJECT_NAME}Targets")
+set(namespace "${PROJECT_NAME}::")
+
 add_subdirectory(lib)
+
+if(CMAKE_USE_BORINGSSL)
+  target_compile_definitions(libcurl PRIVATE HAVE_BORINGSSL)
+endif()
 
 if(BUILD_CURL_EXE)
   add_subdirectory(src)
@@ -1442,6 +1554,13 @@ set(CONFIGURE_OPTIONS       "")
 # TODO when to set "-DCURL_STATICLIB" for CPPFLAG_CURL_STATICLIB?
 set(CPPFLAG_CURL_STATICLIB  "")
 set(CURLVERSION             "${CURL_VERSION}")
+set(ENABLE_SHARED           "yes")
+if(NOT BUILD_SHARED_LIBS)
+  set(ENABLE_STATIC         "yes")
+  set(ENABLE_SHARED         "no")
+else()
+  set(ENABLE_STATIC         "no")
+endif()
 set(exec_prefix             "\${prefix}")
 set(includedir              "\${prefix}/include")
 set(LDFLAGS                 "${CMAKE_SHARED_LINKER_FLAGS}")
@@ -1557,3 +1676,30 @@ if(NOT TARGET uninstall)
       COMMAND ${CMAKE_COMMAND} -P
       ${CMAKE_CURRENT_BINARY_DIR}/CMake/cmake_uninstall.cmake)
 endif()
+
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file("${version_config}" COMPATIBILITY SameMajorVersion)
+
+# Use variables:
+#   * targets_export_name
+#   * PROJECT_NAME
+configure_package_config_file(
+    "CMake/Config.cmake.in"
+    "${project_config}"
+    INSTALL_DESTINATION "${config_install_dir}"
+)
+
+#   * <prefix>/lib/cmake/Foo/FooConfig.cmake
+#   * <prefix>/lib/cmake/Foo/FooConfigVersion.cmake
+install(
+    FILES "${project_config}" "${version_config}"
+    DESTINATION "${config_install_dir}"
+)
+
+# Config
+#   * <prefix>/lib/cmake/Foo/FooTargets.cmake
+install(
+    EXPORT "${targets_export_name}"
+    NAMESPACE "${namespace}"
+    DESTINATION "${config_install_dir}"
+)

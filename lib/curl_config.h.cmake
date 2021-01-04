@@ -21,6 +21,8 @@
  ***************************************************************************/
 /* lib/curl_config.h.in.  Generated somehow by cmake.  */
 
+#include <intsizeof.h> // INTSIZEOF_INT
+
 /* when building libcurl itself */
 #cmakedefine BUILDING_LIBCURL 1
 
@@ -925,13 +927,13 @@
 */
 
 /* The size of `int', as computed by sizeof. */
-${SIZEOF_INT_CODE}
+#define SIZEOF_INT INTSIZEOF_INT
 
 /* The size of `short', as computed by sizeof. */
-${SIZEOF_SHORT_CODE}
+#define SIZEOF_SHORT INTSIZEOF_SHRT
 
 /* The size of `long', as computed by sizeof. */
-${SIZEOF_LONG_CODE}
+#define SIZEOF_LONG INTSIZEOF_LONG
 
 /* The size of `off_t', as computed by sizeof. */
 ${SIZEOF_OFF_T_CODE}
@@ -940,10 +942,25 @@ ${SIZEOF_OFF_T_CODE}
 ${SIZEOF_CURL_OFF_T_CODE}
 
 /* The size of `size_t', as computed by sizeof. */
-${SIZEOF_SIZE_T_CODE}
+#define SIZEOF_SIZE_T INTSIZEOF_SIZE
+
+#if defined(__APPLE__) && \
+    defined(__MACH__) && \
+    defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__)
+# if defined(__aarch64__) || defined(__x86_64__)
+#  define SIZEOF_TIME_T 8
+# else
+#  define SIZEOF_TIME_T 4
+# endif
+#else
 
 /* The size of `time_t', as computed by sizeof. */
 ${SIZEOF_TIME_T_CODE}
+
+#endif
+
+/* The size of `void*', as computed by sizeof. */
+#cmakedefine SIZEOF_VOIDP ${SIZEOF_VOIDP}
 
 /* Define to 1 if you have the ANSI C header files. */
 #cmakedefine STDC_HEADERS 1
@@ -1071,7 +1088,18 @@ ${SIZEOF_TIME_T_CODE}
 #cmakedefine size_t ${size_t}
 
 /* the signed version of size_t */
-#cmakedefine ssize_t ${ssize_t}
+
+#cmakedefine HAVE_SIZEOF_SSIZE_T 1
+
+#if !defined(HAVE_SIZEOF_SSIZE_T)
+# if INTSIZEOF_LONG == INTSIZEOF_SIZE
+typedef long ssize_t;
+# elif INTSIZEOF_SIZE == 8
+typedef int64_t ssize_t;
+# else
+#  error "Can't set ssize_t type"
+# endif
+#endif
 
 /* Define to 1 if you have the mach_absolute_time function. */
 #cmakedefine HAVE_MACH_ABSOLUTE_TIME 1
