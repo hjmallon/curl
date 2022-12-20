@@ -717,6 +717,7 @@ endif()
 
 set(HAVE_LIBZ OFF)
 set(USE_ZLIB OFF)
+hunter_add_package(ZLIB)
 optional_dependency(ZLIB)
 if(ZLIB_FOUND)
   set(HAVE_LIBZ ON)
@@ -725,7 +726,10 @@ if(ZLIB_FOUND)
   # Depend on ZLIB via imported targets if supported by the running
   # version of CMake.  This allows our dependents to get our dependencies
   # transitively.
-  if(NOT CMAKE_VERSION VERSION_LESS 3.4)
+  if(HUNTER_ENABLED)
+    list(APPEND CURL_LIBS ZLIB::zlib)
+    set(ZLIB_INCLUDE_DIRS "${ZLIB_ROOT}/include")
+  elseif(NOT CMAKE_VERSION VERSION_LESS 3.4)
     list(APPEND CURL_LIBS ZLIB::ZLIB)
   else()
     list(APPEND CURL_LIBS ${ZLIB_LIBRARIES})
