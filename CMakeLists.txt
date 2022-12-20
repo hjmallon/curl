@@ -490,6 +490,7 @@ if(use_core_foundation_and_core_services)
 endif()
 
 if(CURL_USE_OPENSSL)
+  hunter_add_package(OpenSSL)
   find_package(OpenSSL REQUIRED)
   set(SSL_ENABLED ON)
   set(USE_OPENSSL ON)
