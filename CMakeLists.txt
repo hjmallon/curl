@@ -68,6 +68,12 @@ include(Macros)
 include(CMakeDependentOption)
 include(CheckCCompilerFlag)
 
+include("CMake/HunterGate.cmake")
+HunterGate(
+  URL "https://github.com/cpp-pm/hunter/archive/v0.24.11.tar.gz"
+  SHA1 "e49fb20a135675e406e95fbe9a591a630ccbbeaf"
+)
+
 project(CURL C)
 
 file(STRINGS ${CURL_SOURCE_DIR}/include/curl/curlver.h CURL_VERSION_H_CONTENTS REGEX "#define LIBCURL_VERSION( |_NUM )")
